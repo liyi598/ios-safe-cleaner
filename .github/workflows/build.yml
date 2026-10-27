@@ -1,0 +1,52 @@
+name: Build IPA
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main, master ]
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Build app (unsigned for TrollStore)
+        run: |
+          xcodebuild \
+            -project QingShuang.xcodeproj \
+            -scheme QingShuang \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            build
+
+      - name: Package IPA
+        run: |
+          set -e
+          APP_PATH="build/Build/Products/Release-iphoneos/QingShuang.app"
+          test -d "$APP_PATH"
+          mkdir -p package/Payload
+          cp -R "$APP_PATH" package/Payload/
+          cd package
+          /usr/bin/zip -qry ../QingShuang.ipa Payload
+          cd ..
+          ls -lh QingShuang.ipa
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: QingShuang-iOS17-IPA
+          path: QingShuang.ipa
+          if-no-files-found: error
+          retention-days: 14
